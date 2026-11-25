@@ -4,14 +4,58 @@ import { useGSAP } from '@gsap/react'
 
 gsap.registerPlugin(useGSAP)
 
-type Phase = 'idle' | 'inhale' | 'hold' | 'exhale'
+type Phase = 'idle' | 'inhale' | 'hold' | 'exhale' | 'rest'
 
 const phaseText: Record<Phase, string> = {
   idle: 'Ready when you are',
   inhale: 'Breathe in',
   hold: 'Hold',
   exhale: 'Breathe out',
+  rest: 'Rest',
 }
+
+interface Step {
+  phase: Exclude<Phase, 'idle'>
+  duration: number
+  scale: number
+}
+
+interface Pattern {
+  id: string
+  label: string
+  steps: Step[]
+}
+
+const patterns: Pattern[] = [
+  {
+    id: 'calm',
+    label: 'Calm',
+    steps: [
+      { phase: 'inhale', duration: 4, scale: 1.5 },
+      { phase: 'hold', duration: 2, scale: 1.5 },
+      { phase: 'exhale', duration: 6, scale: 1 },
+    ],
+  },
+  {
+    id: 'relax',
+    label: '4-7-8',
+    steps: [
+      { phase: 'inhale', duration: 4, scale: 1.5 },
+      { phase: 'hold', duration: 7, scale: 1.5 },
+      { phase: 'exhale', duration: 8, scale: 1 },
+    ],
+  },
+  {
+    id: 'box',
+    label: 'Box',
+    steps: [
+      { phase: 'inhale', duration: 4, scale: 1.5 },
+      { phase: 'hold', duration: 4, scale: 1.5 },
+      { phase: 'exhale', duration: 4, scale: 1 },
+      { phase: 'rest', duration: 4, scale: 1 },
+    ],
+  },
+]
 
 function App() {
   const container = useRef<HTMLDivElement>(null)
@@ -19,7 +63,9 @@ function App() {
   const timeline = useRef<gsap.core.Timeline | null>(null)
   const [isBreathing, setIsBreathing] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
+  const [pattern, setPattern] = useState<Pattern>(patterns[0])
 
+  // Entrance animation (plays once)
   useGSAP(
     () => {
       gsap.from('.fade-in', {
@@ -29,36 +75,33 @@ function App() {
         ease: 'power3.out',
         stagger: 0.2,
       })
-
-      timeline.current = gsap
-        .timeline({ repeat: -1, paused: true })
-        .to(orb.current, { scale: 1.5, duration: 4, ease: 'sine.inOut' })
-        .to(orb.current, { scale: 1.5, duration: 2 })
-        .to(orb.current, { scale: 1, duration: 6, ease: 'sine.inOut' })
-
-      timeline.current = gsap
-        .timeline({ repeat: -1, paused: true })
-        .to(orb.current, {
-          scale: 1.5,
-          duration: 4,
-          ease: 'sine.inOut',
-          onStart: () => setPhase('inhale'),
-        })
-        .to(orb.current, {
-          scale: 1.5,
-          duration: 2,
-          onStart: () => setPhase('hold'),
-        })
-        .to(orb.current, {
-          scale: 1,
-          duration: 6,
-          ease: 'sine.inOut',
-          onStart: () => setPhase('exhale'),
-        })
     },
     { scope: container }
   )
 
+  // Breathing timeline (rebuilds when the pattern changes)
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ repeat: -1, paused: true })
+
+      pattern.steps.forEach((step) => {
+        tl.to(orb.current, {
+          scale: step.scale,
+          duration: step.duration,
+          ease:
+            step.phase === 'inhale' || step.phase === 'exhale'
+              ? 'sine.inOut'
+              : 'none',
+          onStart: () => setPhase(step.phase),
+        })
+      })
+
+      timeline.current = tl
+    },
+    { scope: container, dependencies: [pattern] }
+  )
+
+  // Fade the phase text whenever the phase changes
   useGSAP(
     () => {
       gsap.fromTo(
@@ -79,6 +122,12 @@ function App() {
     setIsBreathing((current) => !current)
   }
 
+  const selectPattern = (next: Pattern) => {
+    setPattern(next)
+    setIsBreathing(false)
+    setPhase('idle')
+  }
+
   return (
     <div
       ref={container}
@@ -96,7 +145,7 @@ function App() {
         ref={orb}
         className="fade-in my-10 h-56 w-56 rounded-full bg-gradient-to-br from-sky-300 to-indigo-400 shadow-[0_0_120px_rgba(129,140,248,0.45)] will-change-transform"
       />
-      
+
       <p className="phase-text mt-2 h-8 text-xl font-light tracking-wide text-neutral-300">
         {phaseText[phase]}
       </p>
@@ -108,7 +157,21 @@ function App() {
         {isBreathing ? 'Pause' : 'Play'}
       </button>
 
-      
+      <div className="fade-in mt-8 flex gap-1 rounded-full bg-white/5 p-1 ring-1 ring-white/10">
+        {patterns.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => selectPattern(p)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              p.id === pattern.id
+                ? 'bg-white/15 text-white'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
