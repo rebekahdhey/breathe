@@ -4,11 +4,21 @@ import { useGSAP } from '@gsap/react'
 
 gsap.registerPlugin(useGSAP)
 
+type Phase = 'idle' | 'inhale' | 'hold' | 'exhale'
+
+const phaseText: Record<Phase, string> = {
+  idle: 'Ready when you are',
+  inhale: 'Breathe in',
+  hold: 'Hold',
+  exhale: 'Breathe out',
+}
+
 function App() {
   const container = useRef<HTMLDivElement>(null)
   const orb = useRef<HTMLDivElement>(null)
   const timeline = useRef<gsap.core.Timeline | null>(null)
   const [isBreathing, setIsBreathing] = useState(false)
+  const [phase, setPhase] = useState<Phase>('idle')
 
   useGSAP(
     () => {
@@ -25,8 +35,39 @@ function App() {
         .to(orb.current, { scale: 1.5, duration: 4, ease: 'sine.inOut' })
         .to(orb.current, { scale: 1.5, duration: 2 })
         .to(orb.current, { scale: 1, duration: 6, ease: 'sine.inOut' })
+
+      timeline.current = gsap
+        .timeline({ repeat: -1, paused: true })
+        .to(orb.current, {
+          scale: 1.5,
+          duration: 4,
+          ease: 'sine.inOut',
+          onStart: () => setPhase('inhale'),
+        })
+        .to(orb.current, {
+          scale: 1.5,
+          duration: 2,
+          onStart: () => setPhase('hold'),
+        })
+        .to(orb.current, {
+          scale: 1,
+          duration: 6,
+          ease: 'sine.inOut',
+          onStart: () => setPhase('exhale'),
+        })
     },
     { scope: container }
+  )
+
+  useGSAP(
+    () => {
+      gsap.fromTo(
+        '.phase-text',
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }
+      )
+    },
+    { scope: container, dependencies: [phase] }
   )
 
   const toggle = () => {
@@ -55,6 +96,10 @@ function App() {
         ref={orb}
         className="fade-in my-10 h-56 w-56 rounded-full bg-gradient-to-br from-sky-300 to-indigo-400 shadow-[0_0_120px_rgba(129,140,248,0.45)] will-change-transform"
       />
+      
+      <p className="phase-text mt-2 h-8 text-xl font-light tracking-wide text-neutral-300">
+        {phaseText[phase]}
+      </p>
 
       <button
         onClick={toggle}
@@ -62,6 +107,8 @@ function App() {
       >
         {isBreathing ? 'Pause' : 'Play'}
       </button>
+
+      
     </div>
   )
 }
