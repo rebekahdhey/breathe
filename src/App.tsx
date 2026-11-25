@@ -64,6 +64,7 @@ function App() {
   const [isBreathing, setIsBreathing] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const [pattern, setPattern] = useState<Pattern>(patterns[0])
+  const [breaths, setBreaths] = useState(0)
 
   // Entrance animation (plays once)
   useGSAP(
@@ -82,18 +83,37 @@ function App() {
   // Breathing timeline (rebuilds when the pattern changes)
   useGSAP(
     () => {
-      const tl = gsap.timeline({ repeat: -1, paused: true })
+      const tl = gsap.timeline({
+        repeat: -1,
+        paused: true,
+        onRepeat: () => setBreaths((count) => count + 1),
+      })
 
       pattern.steps.forEach((step) => {
+        const ease =
+          step.phase === 'inhale' || step.phase === 'exhale'
+            ? 'sine.inOut'
+            : 'none'
+
+        // The orb
         tl.to(orb.current, {
           scale: step.scale,
           duration: step.duration,
-          ease:
-            step.phase === 'inhale' || step.phase === 'exhale'
-              ? 'sine.inOut'
-              : 'none',
+          ease,
           onStart: () => setPhase(step.phase),
         })
+
+        // The rings, starting at the same moment as the orb tween
+        tl.to(
+          '.halo',
+          {
+            scale: (i) => (step.scale > 1 ? step.scale + (i + 1) * 0.25 : 1),
+            opacity: step.scale > 1 ? 0.6 : 0,
+            duration: step.duration,
+            ease,
+          },
+          '<'
+        )
       })
 
       timeline.current = tl
@@ -126,6 +146,7 @@ function App() {
     setPattern(next)
     setIsBreathing(false)
     setPhase('idle')
+    setBreaths(0)
   }
 
   return (
@@ -141,10 +162,18 @@ function App() {
         Take a moment.
       </h1>
 
-      <div
-        ref={orb}
-        className="fade-in my-10 h-56 w-56 rounded-full bg-gradient-to-br from-sky-300 to-indigo-400 shadow-[0_0_120px_rgba(129,140,248,0.45)] will-change-transform"
-      />
+      <div className="fade-in relative my-10 h-56 w-56">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="halo absolute inset-0 rounded-full opacity-0 ring-1 ring-indigo-300/40"
+          />
+        ))}
+        <div
+          ref={orb}
+          className="absolute inset-0 rounded-full bg-gradient-to-br from-sky-300 to-indigo-400 shadow-[0_0_120px_rgba(129,140,248,0.45)] will-change-transform"
+        />
+      </div>
 
       <p className="phase-text mt-2 h-8 text-xl font-light tracking-wide text-neutral-300">
         {phaseText[phase]}
@@ -172,6 +201,10 @@ function App() {
           </button>
         ))}
       </div>
+
+      <p className="mt-6 h-5 text-sm text-neutral-500">
+        {breaths > 0 && `${breaths} ${breaths === 1 ? 'breath' : 'breaths'}`}
+      </p>
     </div>
   )
 }
